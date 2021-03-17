@@ -1,0 +1,52 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Variable substitution.
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the main branch
+on: create
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Organice project
+  setup-app:
+    if: github.ref == 'refs/heads/main'
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Cloning repo.
+        uses: actions/checkout@v2
+
+
+      - name: Selecting app.
+        env:
+          REPO_DESCRIPTION: ${{ github.event.repository.description }}
+          SELECTED_FRAMEWORK_NAME: $(echo "react|django|phoenix|fastapi" | grep -E -i -o -w "${{ REPO_DESCRIPTION }}")
+          SELECTED_APP: $([[ -z ${{ SELECTED_FRAMEWORK_NAME }} ]] && echo ${{ SELECTED_FRAMEWORK_NAME }} || echo "django")
+        run: |
+          echo "REPO_DESCRIPTION: $REPO_DESCRIPTION"
+          echo "SELECTED_FRAMEWORK_NAME: $SELECTED_FRAMEWORK_NAME"
+          echo "SELECTED_APP: $SELECTED_APP"
+          mkdir ./selected-app
+          mv ./templates/$SELECTED_APP-app/* ./selected-app
+
+      # https://docs.github.com/en/developers/webhooks-and-events/github-event-types
+      - name: Replace variables.
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          REPO_DESCRIPTION: ${{ github.event.repository.description }}
+        run: |
+          find ./ -type f -exec sed -i "s/<REPO_NAME>/$REPO_NAME/g" {} +
+          find ./ -type f -exec sed -i "s/<REPO_DESCRIPTION>/$REPO_DESCRIPTION/g" {} +
+
+      - name: Cleanup.
+        run: |
+          find ./ -maxdepth 1 -regextype posix-extended  -not -regex "./.git|./|./selected-app" -exec rm -fr {} +
+          mv ./selected-app/* ./
+          rm -fr ./selected-app
+
+      - name: Git Commit/Push Changes
+        uses: actions-x/commit@v1
